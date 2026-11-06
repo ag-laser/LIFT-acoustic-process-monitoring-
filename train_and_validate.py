@@ -2,8 +2,7 @@
 Focal-Offset Regression: Random Forest vs Gradient Boosting vs Gaussian Process
 =================================================================================
 Predicts focal-offset distance (um) from AE waveform features extracted at
-each printed position. Reproduces the model comparison and validation
-numbers reported in Section 3.3 of the manuscript.
+each printed position.
 
 Two validation protocols are used, matching the manuscript:
   1. LOOCV on position-averaged data - each focal-offset position is held
@@ -14,14 +13,6 @@ Two validation protocols are used, matching the manuscript:
      tests generalisation to a fully independent experimental session,
      not just an unseen position within an already-seen session.
 
-LEAKAGE PREVENTION:
-Feature standardisation (StandardScaler) is fit ONLY on each fold's
-training data, never on the full dataset before splitting. This is
-enforced by wrapping the scaler and model in a single sklearn Pipeline,
-so cross_val_predict() re-fits the scaler fresh inside every fold. If the
-scaler were fit once on the whole dataset up front, the held-out point in
-each fold would influence the very statistics used to rescale it - a
-subtle form of information leakage from "unseen" data into preprocessing.
 
 Model hyperparameters are fixed in advance (not tuned via an additional
 validation split, which would further shrink this already-small dataset),
@@ -30,7 +21,6 @@ and are deliberately conservative for the sample size (n=27-51):
   - GB:  shallow trees (depth 2), slow learning rate, subsampling
   - GPR: RBF + white-noise kernel, calibrated predictive uncertainty
 
-Usage: set FEATURES_CSV below and run.
 """
 
 import numpy as np
@@ -89,7 +79,7 @@ def select_features(df, step_um, n_feats=TOP_N_FEATS):
     significant = [f for f, (rho, p) in ranked if p < 0.05]
     return significant[:n_feats] if significant else [f for f, _ in ranked[:n_feats]]
 
-# ── Protocol 1: LOOCV on position-averaged data ─────────────────────────
+# LOOCV on position-averaged data ─────────────────────────
 def loocv_eval(sub, feats, model_name):
     avg = sub.groupby('offset_um')[feats].mean().reset_index().dropna(subset=feats)
     X, y = avg[feats].values, avg['offset_um'].values   # raw, unscaled features
@@ -99,7 +89,7 @@ def loocv_eval(sub, feats, model_name):
                 rmse=np.sqrt(mean_squared_error(y, y_pred)),
                 mae=mean_absolute_error(y, y_pred))
 
-# ── Protocol 2: cross-round CV (train on 2 rounds, test on the 3rd) ─────
+# Cross-round CV (train on 2 rounds, test on the 3rd) ─────
 def cross_round_eval(sub, feats, model_name):
     replicates = sorted(sub['replicate'].unique())
     all_true, all_pred, fold_r2 = [], [], []
